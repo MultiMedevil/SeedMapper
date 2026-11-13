@@ -47,7 +47,7 @@ Locates a given biome closest to the player. All biomes in all dimensions are su
 ### Structure locating
 Usage: `/sm:locate feature <structure>[<pieces>]{<variants>}`.
 
-Locates a given structure closest to the player. All structures in all dimensions are supported. However, due to limitations in the underlying library, some structures (in particular desert pyramids, jungle temples and woodland mansions) may result in occasional false positives. For more advanced querying you can also use piece and variant data to further restrict the search. For example, the following command will search for end cities with ships: `/sm:locate feature structure end_city[end_ship]`.
+Locates a given structure closest to the player. All structures in all dimensions are supported. However, due to limitations in the underlying library, some structures (in particular desert pyramids, jungle temples and, before 26.1, woodland mansions) may result in occasional false positives. For more advanced querying you can also use piece and variant data to further restrict the search. For example, the following command will search for end cities with ships: `/sm:locate feature structure end_city[end_ship]`.
 
 ### Ore vein locating
 Usage: `/sm:locate orevein (copper|iron)`.
@@ -73,7 +73,7 @@ For every mansion with a matching chest, the position of the mansion and the pos
 
 How this works: the layout of a woodland mansion (its rooms, and so its chests) and the loot seed of every chest follow from the world seed, so SeedMapper replays the generation of the game instead of estimating probabilities. A chest is only reported if the replayed loot actually contains the item. Keep the following in mind:
 - Supported for worlds generated in versions 26.1, 26.2 and 26.3. The generated rooms were compared with the game code of these versions. Mansions of older versions are generated differently in at least one detail and are not supported.
-- The Y level of a mansion depends on the terrain. If the terrain below one of the corners the game samples is under sea level, SeedMapper assumes that corner is covered by water. This is almost always true, but it is not verified, so such a mansion is marked with `(Y estimated)`, or with `(may not generate)` if the mansion would not generate otherwise. The X and Z coordinates and the loot do not depend on the Y level.
+- The Y level of a mansion depends on the terrain. SeedMapper computes the terrain exactly, but it does not simulate aquifers. If the terrain below one of the corners the game samples is under sea level, SeedMapper assumes that corner is covered by water. This is almost always true, but it is not verified, so such a mansion is marked with `(Y estimated)`, or with `(may not generate)` if the mansion would not generate otherwise. In rare cases (about 1 in 100 mansions in a comparison with the world generator of the game) an aquifer puts a pond on top of one of the corners above sea level, and the mansion and its chests are one block higher than reported, without a mark. The X and Z coordinates and the loot do not depend on the Y level.
 - The result describes the world as the unmodified game generates it. Chests that were opened before, and chunks that were generated in another version or with a datapack or mod that changes world generation, can differ.
 
 ### Ore highlighting

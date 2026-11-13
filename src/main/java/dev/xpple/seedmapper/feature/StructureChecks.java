@@ -41,6 +41,18 @@ public final class StructureChecks {
                 return Cubiomes.isViableNetherFossilTerrain(Pos.x(structurePos) >> 4, Pos.z(structurePos) >> 4, variant, TerrainNoise.base3dNoise(terrainNoise), Generator.mc(TerrainNoise.g(terrainNoise))) != 0;
             }
         }));
+        tempGenerationChecks.put(Cubiomes.Mansion(), structure -> (terrainNoise, regionX, regionZ, structurePos) -> {
+            MemorySegment generator = TerrainNoise.g(terrainNoise);
+            int version = Generator.mc(generator);
+            if (!WoodlandMansions.isLootSupported(version)) {
+                return baseGenerationCheck().apply(structure).check(terrainNoise, regionX, regionZ, structurePos);
+            }
+            // for these versions the terrain and the biome check of the game can be reproduced, instead of approximated
+            if (Cubiomes.getStructurePos(structure, version, Generator.seed(generator), regionX, regionZ, structurePos) == 0) {
+                return false;
+            }
+            return WoodlandMansions.getStart(terrainNoise, Pos.x(structurePos) >> 4, Pos.z(structurePos) >> 4) != null;
+        });
         GENERATION_CHECKS = Int2ObjectMaps.unmodifiable(tempGenerationChecks);
 
         Int2ObjectMap<PiecesPredicateCheck> tempPiecesPredicateChecks = new Int2ObjectOpenHashMap<>();
