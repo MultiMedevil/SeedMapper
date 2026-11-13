@@ -175,6 +175,11 @@ void initTerrainNoise(TerrainNoise *params, uint64_t ws, int dim) {
     applySeed(&params->g, dim, ws);
 
     initBlendedNoise(&params->base3dNoise, ws, dim);
+    // Compared with the surface heights of the game for 26.1, 26.2 and 26.3. Older versions since
+    // 1.18 most likely need the bias as well, but that has not been checked, so they are left as is.
+    if (params->g.mc >= MC_26_1) {
+        params->base3dNoise.smearRoundingBias = (double) 1.0E-7F;
+    }
 
     if (dim != DIM_NETHER && (params->g.mc < MC_1_18 || dim == DIM_END)) {
         initSurfaceNoise(&params->sn, dim, ws);

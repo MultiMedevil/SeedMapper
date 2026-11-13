@@ -2040,6 +2040,7 @@ void initBlendedNoise(BlendedNoise *bn, uint64_t ws, int dim)
     bn->yMultiplier = 684.412 * bn->yScale;
     bn->smearedYScale = bn->yMultiplier * bn->smearScaleMultiplier;
     bn->factoredSmearedYScale = bn->smearedYScale / bn->yFactor;
+    bn->smearRoundingBias = 0.0;
 
     switch (dim) {
     case DIM_OVERWORLD: {
@@ -2093,7 +2094,7 @@ double sampleBase3dNoise(BlendedNoise *bn, int x, int y, int z)
     double o = 1.0;
 
     for (int octaveIdx = 0; octaveIdx < 8; octaveIdx++) {
-        mainSampleTotal += samplePerlin(&bn->octmain.octaves[octaveIdx], maintainPrecision(factoredX * o), maintainPrecision(factoredY * o), maintainPrecision(factoredZ * o), bn->factoredSmearedYScale * o, factoredY * o) / o;
+        mainSampleTotal += samplePerlinBiased(&bn->octmain.octaves[octaveIdx], maintainPrecision(factoredX * o), maintainPrecision(factoredY * o), maintainPrecision(factoredZ * o), bn->factoredSmearedYScale * o, factoredY * o, bn->smearRoundingBias) / o;
         o /= 2.0;
     }
 
@@ -2107,11 +2108,11 @@ double sampleBase3dNoise(BlendedNoise *bn, int x, int y, int z)
         double yamp = bn->smearedYScale * o;
         double ymax = scaledY * o;
         if (q < 1.0) {
-            minSampleTotal += samplePerlin(&bn->octmin.octaves[octaveIdx], sampleX, sampleY, sampleZ, yamp, ymax) / o;
+            minSampleTotal += samplePerlinBiased(&bn->octmin.octaves[octaveIdx], sampleX, sampleY, sampleZ, yamp, ymax, bn->smearRoundingBias) / o;
         }
 
         if (q > 0.0) {
-            maxSampleTotal += samplePerlin(&bn->octmax.octaves[octaveIdx], sampleX, sampleY, sampleZ, yamp, ymax) / o;
+            maxSampleTotal += samplePerlinBiased(&bn->octmax.octaves[octaveIdx], sampleX, sampleY, sampleZ, yamp, ymax, bn->smearRoundingBias) / o;
         }
 
         o /= 2.0;

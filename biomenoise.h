@@ -162,6 +162,11 @@ STRUCT(BlendedNoise)
     double smearScaleMultiplier;
     double smearedYScale;
     double factoredSmearedYScale;
+    // The game adds a small bias to the quotient of the Y smear before rounding it down. Without it,
+    // a quotient that is an integer mathematically can end up just below that integer, which happens
+    // at every Y-coordinate that is a multiple of the cell height. initBlendedNoise leaves the bias
+    // at zero, initTerrainNoise enables it for the versions it was verified for.
+    double smearRoundingBias;
     OctaveNoise octmin;
     OctaveNoise octmax;
     OctaveNoise octmain;

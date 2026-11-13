@@ -50,6 +50,10 @@ void xPerlinInit(PerlinNoise *__restrict noise, Xoroshiro *__restrict xr);
 
 double samplePerlin(const PerlinNoise *noise, double x, double y, double z,
         double yamp, double ymax);
+/// Like samplePerlin, but adds ybias to the quotient of the Y smear before it is rounded down.
+/// See BlendedNoise::smearRoundingBias.
+double samplePerlinBiased(const PerlinNoise *noise, double x, double y, double z,
+        double yamp, double ymax, double ybias);
 double sampleSimplex2D(const PerlinNoise *noise, double x, double y);
 
 /// Perlin Octaves
