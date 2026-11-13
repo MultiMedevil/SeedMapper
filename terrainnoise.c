@@ -1,6 +1,7 @@
 #include "terrainnoise.h"
 
 #include <stdio.h>
+#include <string.h>
 
 static inline float peaksAndValleys(float weirdness) {
     return -(fabsf(fabsf(weirdness) - 0.6666667F) - 0.33333334F) * 3.0F;
@@ -754,6 +755,168 @@ void generateRegion(TerrainNoise *params, int chunkX, int chunkZ, int chunkW, in
     }
     free(ds);
 }
+
+// The interpolated density functions that make up `final_density`. The game interpolates each of them
+// separately between the cell corners, and only then combines them.
+typedef struct {
+    double main;        // the argument of `interpolated` in `postProcess`
+    double noodle, noodleThickness, noodleRidgeA, noodleRidgeB;
+    int hasNoodle;
+} DensityParts;
+
+typedef struct {
+    int x, z;
+    double depth, factor, jagged;
+    int used;
+} SurfaceColumn;
+
+static void initSurfaceColumn(TerrainNoise *params, SurfaceColumn *col, int cellX, int cellZ, int used) {
+    col->x = cellX * 4;
+    col->z = cellZ * 4;
+    col->used = used;
+    if (!used) {
+        return;
+    }
+    float np_param[4];
+    sampleNoiseParameters(&params->g.bn, cellX, cellZ, np_param);
+    col->depth = getSpline(params->g.bn.sp, np_param) - 0.50375f;
+    col->factor = getSpline(params->factorSpline, np_param);
+    double jagged = sampleDoublePerlin(&params->noises[OTP_JAGGED], col->x * 1500.0, 0, col->z * 1500.0);
+    jagged = jagged >= 0.0 ? jagged : jagged / 2.0;
+    col->jagged = jagged * getSpline(params->jaggednessSpline, np_param);
+}
+
+static void sampleMainDensityPart(TerrainNoise *params, const SurfaceColumn *col, int y, DensityParts *parts) {
+    parts->hasNoodle = 0;
+    if (!col->used) {
+        parts->main = 0.0;
+        return;
+    }
+    const int x = col->x, z = col->z;
+    double spaghettiRoughness = sampleSpaghettiRoughness(params, x, y, z);
+    double entrances = sampleEntrances(params, x, y, z, spaghettiRoughness);
+    double slopedCheese = sampleSlopedCheese(params, x, y, z, col->depth, col->factor, col->jagged);
+    double b;
+    if (slopedCheese >= -1000000.0 && slopedCheese < 1.5625) {
+        b = fmin(slopedCheese, 5.0 * entrances);
+    } else {
+        b = sampleUnderground(params, x, y, z, spaghettiRoughness, entrances, slopedCheese);
+    }
+    parts->main = slideOverworld(b, y);
+}
+
+static void sampleNoodleDensityParts(TerrainNoise *params, const SurfaceColumn *col, int y, DensityParts *parts) {
+    if (parts->hasNoodle) {
+        return;
+    }
+    parts->hasNoodle = 1;
+    if (!col->used) {
+        parts->noodle = parts->noodleThickness = parts->noodleRidgeA = parts->noodleRidgeB = 0.0;
+        return;
+    }
+    const int x = col->x, z = col->z;
+    const double s = 2.6666666666666665;
+    parts->noodle = yLimitedInterpolatable(y, sampleDoublePerlin(&params->noises[OTP_NOODLE], x, y, z), -60, 320, -1);
+    parts->noodleThickness = yLimitedInterpolatable(y, map(sampleDoublePerlin(&params->noises[OTP_NOODLE_THICKNESS], x, y, z), -1.0, 1.0, -0.05, -0.1), -60, 320, 0);
+    parts->noodleRidgeA = yLimitedInterpolatable(y, sampleDoublePerlin(&params->noises[OTP_NOODLE_RIDGE_A], x * s, y * s, z * s), -60, 320, 0);
+    parts->noodleRidgeB = yLimitedInterpolatable(y, sampleDoublePerlin(&params->noises[OTP_NOODLE_RIDGE_B], x * s, y * s, z * s), -60, 320, 0);
+}
+
+// the interpolation order of NoiseInterpolator: Y first, then X, then Z
+#define INTERPOLATE_PART(FIELD) \
+    lerp(fz, \
+        lerp(fx, lerp(fy, lower[0][0].FIELD, upper[0][0].FIELD), lerp(fy, lower[1][0].FIELD, upper[1][0].FIELD)), \
+        lerp(fx, lerp(fy, lower[0][1].FIELD, upper[0][1].FIELD), lerp(fy, lower[1][1].FIELD, upper[1][1].FIELD)))
+
+int sampleWorldSurfaceHeight(TerrainNoise *params, int x, int z, int minHeight, int *lowestPossible) {
+    const int worldMinY = -64;
+    const int seaLevel = 63;
+    const int cellWidth = 4, cellHeight = 8, cellCountY = 48;
+    if (lowestPossible) {
+        *lowestPossible = worldMinY;
+    }
+    if (params->g.dim != DIM_OVERWORLD || params->g.mc <= MC_1_17_1) {
+        return worldMinY;
+    }
+
+    const int cellX = floordiv(x, cellWidth);
+    const int cellZ = floordiv(z, cellWidth);
+    const double fx = (x - cellX * cellWidth) / (double) cellWidth;
+    const double fz = (z - cellZ * cellWidth) / (double) cellWidth;
+
+    // a cell corner with an interpolation weight of zero does not have to be sampled
+    SurfaceColumn cols[2][2];
+    for (int i = 0; i < 2; ++i) {
+        for (int j = 0; j < 2; ++j) {
+            initSurfaceColumn(params, &cols[i][j], cellX + i, cellZ + j, (i == 0 || fx != 0.0) && (j == 0 || fz != 0.0));
+        }
+    }
+
+    DensityParts upper[2][2], lower[2][2];
+    for (int i = 0; i < 2; ++i) {
+        for (int j = 0; j < 2; ++j) {
+            sampleMainDensityPart(params, &cols[i][j], worldMinY + cellCountY * cellHeight, &upper[i][j]);
+        }
+    }
+
+    int minCellY = floordiv(minHeight - 1 - worldMinY, cellHeight);
+    if (minCellY < 0) {
+        minCellY = 0;
+    }
+    int solidHeight = worldMinY;
+    for (int cellY = cellCountY - 1; cellY >= minCellY; --cellY) {
+        const int cellBaseY = worldMinY + cellY * cellHeight;
+        for (int i = 0; i < 2; ++i) {
+            for (int j = 0; j < 2; ++j) {
+                sampleMainDensityPart(params, &cols[i][j], cellBaseY, &lower[i][j]);
+            }
+        }
+        for (int relY = cellHeight - 1; relY >= 0; --relY) {
+            const double fy = relY / (double) cellHeight;
+            if (!(INTERPOLATE_PART(main) > 0.0)) {
+                continue;
+            }
+            // the terrain is solid here unless a noodle cave cuts through it
+            for (int i = 0; i < 2; ++i) {
+                for (int j = 0; j < 2; ++j) {
+                    sampleNoodleDensityParts(params, &cols[i][j], cellBaseY, &lower[i][j]);
+                    sampleNoodleDensityParts(params, &cols[i][j], cellBaseY + cellHeight, &upper[i][j]);
+                }
+            }
+            const double noodle = INTERPOLATE_PART(noodle);
+            int solid;
+            if (noodle >= -1000000.0 && noodle < 0.0) {
+                solid = 1;
+            } else {
+                const double ridge = 1.5 * fmax(fabs(INTERPOLATE_PART(noodleRidgeA)), fabs(INTERPOLATE_PART(noodleRidgeB)));
+                solid = INTERPOLATE_PART(noodleThickness) + ridge > 0.0;
+            }
+            if (solid) {
+                solidHeight = cellBaseY + relY + 1;
+                goto L_found;
+            }
+        }
+        memcpy(upper, lower, sizeof(upper));
+    }
+    // nothing solid at or above minHeight - 1
+    solidHeight = worldMinY;
+
+L_found:
+    // Below the sea level the first non-air block is water, unless the aquifer keeps the column dry.
+    // The latter is rare and cannot be told without simulating the aquifer.
+    if (solidHeight < seaLevel) {
+        if (lowestPossible) {
+            *lowestPossible = solidHeight;
+        }
+        return seaLevel;
+    }
+    if (lowestPossible) {
+        *lowestPossible = solidHeight;
+    }
+    return solidHeight;
+}
+
+#undef INTERPOLATE_PART
 
 double sampleNetherFinalDensity(BlendedNoise* base3dNoise, int x, int y, int z) {
     double sample = sampleBase3dNoise(base3dNoise, x, y, z);

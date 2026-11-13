@@ -254,6 +254,32 @@ double sampleNetherFinalDensity(BlendedNoise* base3dNoise, int x, int y, int z);
 int samplePreliminarySurfaceLevel(TerrainNoise *params, int x, int z);
 
 /**
+ * Compute the height of the world surface (the WORLD_SURFACE_WG heightmap the game uses to place
+ * structures) at the given block coordinates, that is the Y-coordinate of the block above the
+ * highest block that is not air. Only the >=1.18 overworld is supported.
+ *
+ * In contrast to generateColumn, this function interpolates the parts of the final density the
+ * same way the game does, so the height of the terrain is exact. Aquifers are not simulated,
+ * however. If the terrain is below the sea level, the column is assumed to be flooded and the sea
+ * level is returned. In that case lowestPossible is set to the height of the terrain, which is the
+ * height the surface would have if the aquifer kept the column dry. Otherwise lowestPossible is
+ * equal to the returned height.
+ *
+ * To avoid sampling more noise than necessary, the search stops below the noise cell that contains
+ * minHeight - 1. If there is no terrain down to there, the column is treated like one whose terrain
+ * is at the bottom of the world: the sea level is returned and lowestPossible is set to the minimum
+ * Y-coordinate of the world.
+ *
+ * @param params the terrain noise parameters
+ * @param x the world X-coordinate
+ * @param z the world Z-coordinate
+ * @param minHeight the lowest height the caller is interested in
+ * @param lowestPossible the lowest height the surface could have, can be NULL
+ * @return the height of the surface
+ */
+int sampleWorldSurfaceHeight(TerrainNoise *params, int x, int z, int minHeight, int *lowestPossible);
+
+/**
  * Sample the terrain noise column at the given cell coordinates. This function is for <1.18 overworld.
  *
  * The terrain generates at 1:4 XZ scale, so cell = block >> 2. The vertical scale is 1:8.
