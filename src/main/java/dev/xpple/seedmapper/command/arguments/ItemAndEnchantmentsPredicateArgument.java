@@ -38,15 +38,16 @@ import java.util.stream.IntStream;
 
 public class ItemAndEnchantmentsPredicateArgument implements ArgumentType<ItemAndEnchantmentsPredicateArgument.EnchantedItem> {
 
-    private static final Collection<String> EXAMPLES = Arrays.asList("apple", "diamond_pickaxe", "tnt");
+    private static final Collection<String> EXAMPLES = Arrays.asList("apple", "diamond_pickaxe", "tnt", "minecraft:vex_armor_trim_smithing_template");
+
+    private static final String DEFAULT_NAMESPACE_PREFIX = Identifier.DEFAULT_NAMESPACE + Identifier.NAMESPACE_SEPARATOR;
 
     private static final SimpleCommandExceptionType EXPECTED_WITH_WITHOUT_EXCEPTION = new SimpleCommandExceptionType(Component.translatable("commands.exceptions.expectedWithWithout"));
 
     private static final Map<String, Integer> ITEMS = IntStream.range(0, Cubiomes.NUM_ITEMS()).boxed()
         .collect(Collectors.toUnmodifiableMap(item -> {
             String name = Cubiomes.global_id2item_name(item, Cubiomes.MC_NEWEST()).getString(0);
-            String prefix = Identifier.DEFAULT_NAMESPACE + ':';
-            return name.startsWith(prefix) ? name.substring(prefix.length()) : name;
+            return name.startsWith(DEFAULT_NAMESPACE_PREFIX) ? name.substring(DEFAULT_NAMESPACE_PREFIX.length()) : name;
         }, item -> item));
 
     public static final Map<Integer, Item> ITEM_ID_TO_MC = IntStream.range(0, Cubiomes.NUM_ITEMS()).boxed()
@@ -161,6 +162,17 @@ public class ItemAndEnchantmentsPredicateArgument implements ArgumentType<ItemAn
         return context.getArgument(name, EnchantedItem.class);
     }
 
+    /**
+     * Get an item without any enchantment conditions by its name.
+     *
+     * @param name the name of the item, with or without the {@code minecraft:} namespace
+     * @return the item, or {@code null} if the item cannot be found in any supported loot table
+     */
+    public static @Nullable EnchantedItem getItem(String name) {
+        Integer item = ITEMS.get(name.startsWith(DEFAULT_NAMESPACE_PREFIX) ? name.substring(DEFAULT_NAMESPACE_PREFIX.length()) : name);
+        return item == null ? null : new EnchantedItem(item, _ -> true);
+    }
+
     @Override
     public EnchantedItem parse(StringReader reader) throws CommandSyntaxException {
         return new Parser(reader).parse();
@@ -250,16 +262,30 @@ public class ItemAndEnchantmentsPredicateArgument implements ArgumentType<ItemAn
             int cursor = reader.getCursor();
             suggestor = suggestions -> {
                 SuggestionsBuilder builder = suggestions.createOffset(cursor);
-                SharedSuggestionProvider.suggest(ITEMS.keySet(), builder);
+                // items can be written with or without their namespace, suggest whichever is being typed
+                if (builder.getRemaining().indexOf(Identifier.NAMESPACE_SEPARATOR) >= 0) {
+                    SharedSuggestionProvider.suggest(ITEMS.keySet().stream().map(DEFAULT_NAMESPACE_PREFIX::concat), builder);
+                } else {
+                    SharedSuggestionProvider.suggest(ITEMS.keySet(), builder);
+                }
                 suggestions.add(builder);
             };
-            String itemString = reader.readUnquotedString();
-            Integer item = ITEMS.get(itemString);
+            String itemString = readItemString();
+            Integer item = ITEMS.get(itemString.startsWith(DEFAULT_NAMESPACE_PREFIX) ? itemString.substring(DEFAULT_NAMESPACE_PREFIX.length()) : itemString);
             if (item == null) {
                 reader.setCursor(cursor);
                 throw CommandExceptions.UNKNOWN_ITEM_EXCEPTION.create(itemString);
             }
             return item;
+        }
+
+        /// Like [StringReader#readUnquotedString()], but also accepts the namespace separator.
+        private String readItemString() {
+            int start = reader.getCursor();
+            while (reader.canRead() && (StringReader.isAllowedInUnquotedString(reader.peek()) || reader.peek() == Identifier.NAMESPACE_SEPARATOR)) {
+                reader.skip();
+            }
+            return reader.getString().substring(start, reader.getCursor());
         }
 
         private boolean parseWithWithout() throws CommandSyntaxException {
