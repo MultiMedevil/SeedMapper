@@ -4,6 +4,7 @@
 #include "features/abandoned_camp.h"
 #include "features/end_city.h"
 #include "features/fortress.h"
+#include "features/mansion.h"
 #include "features/mineshaft.h"
 #include "features/stronghold.h"
 
@@ -320,6 +321,9 @@ int getStructureSaltConfig(int structureType, int mc, int biome, StructureSaltCo
     ss_jungle_pyramid_1194 =                        {4,  4},
     ss_jungle_pyramid_263 =                         {4, 22},
 
+    ss_mansion_1194 =                               {4,  5},
+    ss_mansion_263 =                                {4, 23},
+
     ss_pillager_outpost_114 =                       {3,  0},
     ss_pillager_outpost_1161 =                      {4,  0},
     ss_pillager_outpost_1194 =                      {4,  9},
@@ -505,6 +509,13 @@ int getStructureSaltConfig(int structureType, int mc, int biome, StructureSaltCo
             else *ssconf = ss_ruined_portal_263; // assuming biome != deep_dark
         }
         return mc >= MC_1_16_1;
+    case Mansion:
+        // The decorator index is the same since 1.19.4, but the room generation of older versions has
+        // not been verified against the game (and is known to have changed at least once), so mansion
+        // loot is only offered for versions that were checked.
+        if (mc < MC_26_3) *ssconf = ss_mansion_1194;
+        else *ssconf = ss_mansion_263;
+        return mc >= MC_26_1;
     case Stronghold:
         if (mc < MC_1_16_1) *ssconf = ss_stronghold_113;
         else if (mc < MC_1_19_2) *ssconf = ss_stronghold_116;
@@ -2993,6 +3004,15 @@ int getVariant(StructureVariant *r, int structType, int mc, uint64_t seed,
         r->rotation = nextInt(&rng, 4);
         r->start = 1 + nextInt(&rng, 10); // abandoned_camp/tent/%s/tent_%s_1..10
         return 1;
+    case Mansion:
+        if (mc <= MC_1_10)
+            return 0;
+        r->rotation = nextInt(&rng, 4);
+        // The Y level depends on the terrain, see getMansionStart. Until the caller fills it in,
+        // Y-coordinates of mansion pieces are relative to the origin of the mansion.
+        r->y = 0;
+        r->x = r->z = 7;
+        return 1;
 
     default:
         return 0;
@@ -3623,6 +3643,7 @@ int getStructurePieces(Piece *list, int n, int stype, StructureSaltConfig ssconf
     }
     case Stronghold: return getStrongholdLoot(list, n, ssconf, mc, seed, posX >> 4, posZ >> 4);
     case Mineshaft: return getMineshaftLoot(list, n, ssconf, mc, seed, posX >> 4, posZ >> 4);
+    case Mansion: return getMansionLoot(list, n, ssconf, mc, seed, posX >> 4, posZ >> 4, sv ? sv->y : 0);
     case Abandoned_Camp: return getAbandonedCampPieces(list, ssconf, sv, mc, seed, posX >> 4, posZ >> 4);
     // structures that have one piece and one chest
     case Treasure: {

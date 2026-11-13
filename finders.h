@@ -617,7 +617,7 @@ int getLootTableCountForStructure(int structure, int mc);
  * @param n either for fortresses the maximum size of the output list, or for end cities a value at least END_CITY_PIECES_MAX
  * @param stype the structure type
  * @param ssconf the structure salt config from getStructureSaltConfig
- * @param sv the structure variant (if available)
+ * @param sv the structure variant (if available); for mansions sv->y is the Y level of the mansion, see getMansionStart
  * @param mc the Minecraft version
  * @param seed the world seed
  * @param posX the block X-coordinate as yielded by getStructurePos

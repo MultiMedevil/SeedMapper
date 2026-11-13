@@ -48,6 +48,8 @@ set(HEADERS
     features/abandoned_camp.h
 	features/end_city.h
 	features/fortress.h
+	features/mansion.h
+	features/mansion_templates.h
     features/mineshaft.h
 	features/ore.h
 	features/piece.h
@@ -150,6 +152,7 @@ set(SOURCES
 	features/abandoned_camp.c
 	features/end_city.c
 	features/fortress.c
+	features/mansion.c
     features/mineshaft.c
 	features/ore.c
 	features/stronghold.c
