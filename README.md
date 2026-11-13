@@ -59,6 +59,23 @@ Usage: `/sm:locate loot <amount> <item> [<enchantment conditions>]`.
 
 Locates chest loot closest to the player. All versions from 1.13 onwards are supported. SeedMapper will search through the chest loot of structures to find loot that matches the item and enchantment conditions. Note that queries for unobtainable loot and illegal enchantment combinations are not prevented by the command. If a search is taking too long, you should probably cancel it using `/sm:stoptask`.
 
+Items can be written with or without the `minecraft:` namespace, so `/sm:locate loot 5 vex_armor_trim_smithing_template` and `/sm:locate loot 5 minecraft:vex_armor_trim_smithing_template` are the same search. Loot in woodland mansions is included for versions 26.1 and later. For mansions the exact position of every matching chest is reported, see below.
+
+### Woodland mansion loot locating
+Usage: `/sm:locate mansionloot <amount> [<radius>] [<item> [<enchantment conditions>]]`.
+
+Searches the chests of the woodland mansions around the player, nearest mansion first, until `<amount>` of the item have been found. Without an item this searches for the vex armor trim (`vex_armor_trim_smithing_template`), which can only be found in woodland mansions. The radius is given in blocks. It defaults to 50000 and is limited to 250000. The item uses the same syntax as [`/sm:locate loot`](#loot-locating). Examples:
+- `/sm:locate mansionloot 5` finds the nearest chests that contain five vex armor trims in total.
+- `/sm:locate mansionloot 1 20000 enchanted_golden_apple` finds the nearest enchanted golden apple in a mansion within 20000 blocks.
+- `/sm:locate mansionloot 1 100000 book with mending *` finds the nearest mansion chest with a mending book.
+
+For every mansion with a matching chest, the position of the mansion and the position and contents of each matching chest are listed. Coordinates can be clicked to copy them, and `[waypoint]` adds a waypoint at the chest. A running search can be cancelled with `/sm:stoptask`.
+
+How this works: the layout of a woodland mansion (its rooms, and so its chests) and the loot seed of every chest follow from the world seed, so SeedMapper replays the generation of the game instead of estimating probabilities. A chest is only reported if the replayed loot actually contains the item. Keep the following in mind:
+- Supported for worlds generated in versions 26.1, 26.2 and 26.3. The generated rooms were compared with the game code of these versions. Mansions of older versions are generated differently in at least one detail and are not supported.
+- The Y level of a mansion depends on the terrain. If the terrain below one of the corners the game samples is under sea level, SeedMapper assumes that corner is covered by water. This is almost always true, but it is not verified, so such a mansion is marked with `(Y estimated)`, or with `(may not generate)` if the mansion would not generate otherwise. The X and Z coordinates and the loot do not depend on the Y level.
+- The result describes the world as the unmodified game generates it. Chests that were opened before, and chunks that were generated in another version or with a datapack or mod that changes world generation, can differ.
+
 ### Ore highlighting
 Usage: `/sm:highlight block <block> [<chunks>]`.
 
@@ -84,6 +101,8 @@ If [Meteor's version of Baritone](https://maven.meteordev.org/#/snapshots/meteor
 
 ## Building from source
 This mod internally uses (a fork of) the C library [cubiomes](https://github.com/Cubitect/cubiomes) by Cubitect. Java bindings for this library were created with (also a fork of) [jextract](https://github.com/openjdk/jextract). The bindings use the [Foreign Function & Memory API](https://openjdk.org/jeps/454) from [Project Panama](https://openjdk.org/projects/panama/). See [CreateJavaBindingsTask.java](https://github.com/xpple/SeedMapper/blob/master/buildSrc/src/main/java/dev/xpple/seedmapper/buildscript/CreateJavaBindingsTask.java) for the Gradle task that automates this.
+
+In this fork the cubiomes submodule contains additional commits for woodland mansion generation and loot. These commits are based on [xpple/cubiomes](https://github.com/xpple/cubiomes) and are kept on the branch `claude/eloquent-babbage-wd4e05-cubiomes` of this repository, which is where `.gitmodules` points to, so that cloning with submodules works without a second repository. To keep them in a fork of cubiomes instead, push that branch to the fork and change the `url` and `branch` of the submodule in `.gitmodules` accordingly.
 
 To build the mod locally, follow these steps:
 
