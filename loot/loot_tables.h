@@ -26,6 +26,7 @@ int init_shipwreck_treasure(LootTableContext** context, int version);
 int init_stronghold_corridor(LootTableContext** context, int version);
 int init_stronghold_crossing(LootTableContext** context, int version);
 int init_stronghold_library(LootTableContext** context, int version);
+int init_woodland_mansion(LootTableContext** context, int version);
 int init_reward(LootTableContext** context, int version);
 int init_reward_common(LootTableContext** context, int version);
 int init_reward_ominous(LootTableContext** context, int version);

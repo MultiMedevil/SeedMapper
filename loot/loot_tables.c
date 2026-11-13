@@ -69,6 +69,8 @@
 #include "loot_tables/chests/stronghold_crossing_1_13.h"
 #include "loot_tables/chests/stronghold_library_1_13.h"
 #include "loot_tables/chests/stronghold_library_1_20.h"
+#include "loot_tables/chests/woodland_mansion_26_1.h"
+#include "loot_tables/chests/woodland_mansion_26_3.h"
 #include "loot_tables/chests/trial_chambers/reward_1_21_1.h"
 #include "loot_tables/chests/trial_chambers/reward_common_1_21_1.h"
 #include "loot_tables/chests/trial_chambers/reward_ominous_1_21_1.h"
@@ -141,6 +143,9 @@ int init_loot_table_name(LootTableContext** context, const char* loot_table, int
     }
     if (strcmp(loot_table, "chests/stronghold_library") == 0) {
         return init_stronghold_library(context, version);
+    }
+    if (strcmp(loot_table, "chests/woodland_mansion") == 0) {
+        return init_woodland_mansion(context, version);
     }
     if (strcmp(loot_table, "chests/trial_chambers/reward") == 0) {
         return init_reward(context, version);
@@ -317,6 +322,14 @@ int init_stronghold_library(LootTableContext** context, int version) {
     if (version < MC_1_20) *context = init_stronghold_library_1_13();
     else *context = init_stronghold_library_1_20();
     return version > MC_1_12;
+}
+
+int init_woodland_mansion(LootTableContext** context, int version) {
+    // mansion loot is only supported for the versions whose mansion generation was verified
+    if (version < MC_26_1) return 0;
+    if (version < MC_26_3) *context = init_woodland_mansion_26_1();
+    else *context = init_woodland_mansion_26_3();
+    return 1;
 }
 
 int init_reward(LootTableContext** context, int version) {

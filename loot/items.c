@@ -28,6 +28,7 @@ int item_name2global_id(const char* name) {
     if (strcmp(name, "minecraft:carrot") == 0) return ITEM_CARROT;
     if (strcmp(name, "minecraft:chain") == 0) return ITEM_CHAIN;
     if (strcmp(name, "minecraft:iron_chain") == 0) return ITEM_IRON_CHAIN;
+    if (strcmp(name, "minecraft:chainmail_chestplate") == 0) return ITEM_CHAINMAIL_CHESTPLATE;
     if (strcmp(name, "minecraft:clock") == 0) return ITEM_CLOCK;
     if (strcmp(name, "minecraft:coal") == 0) return ITEM_COAL;
     if (strcmp(name, "minecraft:coast_armor_trim_smithing_template") == 0) return ITEM_COAST_ARMOR_TRIM_SMITHING_TEMPLATE;
@@ -56,6 +57,7 @@ int item_name2global_id(const char* name) {
     if (strcmp(name, "minecraft:diamond_boots") == 0) return ITEM_DIAMOND_BOOTS;
     if (strcmp(name, "minecraft:diamond_chestplate") == 0) return ITEM_DIAMOND_CHESTPLATE;
     if (strcmp(name, "minecraft:diamond_helmet") == 0) return ITEM_DIAMOND_HELMET;
+    if (strcmp(name, "minecraft:diamond_hoe") == 0) return ITEM_DIAMOND_HOE;
     if (strcmp(name, "minecraft:diamond_horse_armor") == 0) return ITEM_DIAMOND_HORSE_ARMOR;
     if (strcmp(name, "minecraft:diamond_leggings") == 0) return ITEM_DIAMOND_LEGGINGS;
     if (strcmp(name, "minecraft:diamond_nautilus_armor") == 0) return ITEM_DIAMOND_NAUTILUS_ARMOR;
@@ -133,7 +135,9 @@ int item_name2global_id(const char* name) {
     if (strcmp(name, "minecraft:map") == 0) return ITEM_MAP;
     if (strcmp(name, "minecraft:melon_seeds") == 0) return ITEM_MELON_SEEDS;
     if (strcmp(name, "minecraft:moss_block") == 0) return ITEM_MOSS_BLOCK;
+    if (strcmp(name, "minecraft:music_disc_13") == 0) return ITEM_MUSIC_DISC_13;
     if (strcmp(name, "minecraft:music_disc_bounce") == 0) return ITEM_MUSIC_DISC_BOUNCE;
+    if (strcmp(name, "minecraft:music_disc_cat") == 0) return ITEM_MUSIC_DISC_CAT;
     if (strcmp(name, "minecraft:music_disc_creator") == 0) return ITEM_MUSIC_DISC_CREATOR;
     if (strcmp(name, "minecraft:music_disc_otherside") == 0) return ITEM_MUSIC_DISC_OTHERSIDE;
     if (strcmp(name, "minecraft:music_disc_pigstep") == 0) return ITEM_MUSIC_DISC_PIGSTEP;
@@ -156,6 +160,7 @@ int item_name2global_id(const char* name) {
     if (strcmp(name, "minecraft:rabbit_hide") == 0) return ITEM_RABBIT_HIDE;
     if (strcmp(name, "minecraft:rail") == 0) return ITEM_RAIL;
     if (strcmp(name, "minecraft:redstone") == 0) return ITEM_REDSTONE;
+    if (strcmp(name, "minecraft:resin_clump") == 0) return ITEM_RESIN_CLUMP;
     if (strcmp(name, "minecraft:rib_armor_trim_smithing_template") == 0) return ITEM_RIB_ARMOR_TRIM_SMITHING_TEMPLATE;
     if (strcmp(name, "minecraft:rotten_flesh") == 0) return ITEM_ROTTEN_FLESH;
     if (strcmp(name, "minecraft:saddle") == 0) return ITEM_SADDLE;
@@ -177,6 +182,7 @@ int item_name2global_id(const char* name) {
     if (strcmp(name, "minecraft:torch") == 0) return ITEM_TORCH;
     if (strcmp(name, "minecraft:trident") == 0) return ITEM_TRIDENT;
     if (strcmp(name, "minecraft:tripwire_hook") == 0) return ITEM_TRIPWIRE_HOOK;
+    if (strcmp(name, "minecraft:vex_armor_trim_smithing_template") == 0) return ITEM_VEX_ARMOR_TRIM_SMITHING_TEMPLATE;
     if (strcmp(name, "minecraft:warm_ocean_ruins_map") == 0) return ITEM_WARM_OCEAN_RUINS_MAP;
     if (strcmp(name, "minecraft:wheat") == 0) return ITEM_WHEAT;
     if (strcmp(name, "minecraft:white_candle") == 0) return ITEM_WHITE_CANDLE;
@@ -216,6 +222,7 @@ const char* global_id2item_name(int global_id, int mc) {
     case ITEM_BURIED_TRIAL_CHAMBERS_MAP: return "minecraft:buried_trial_chambers_map";
     case ITEM_CARROT: return "minecraft:carrot";
     case ITEM_CHAIN: return "minecraft:chain";
+    case ITEM_CHAINMAIL_CHESTPLATE: return "minecraft:chainmail_chestplate";
     case ITEM_CLOCK: return "minecraft:clock";
     case ITEM_COAL: return "minecraft:coal";
     case ITEM_COAST_ARMOR_TRIM_SMITHING_TEMPLATE: return "minecraft:coast_armor_trim_smithing_template";
@@ -244,6 +251,7 @@ const char* global_id2item_name(int global_id, int mc) {
     case ITEM_DIAMOND_BOOTS: return "minecraft:diamond_boots";
     case ITEM_DIAMOND_CHESTPLATE: return "minecraft:diamond_chestplate";
     case ITEM_DIAMOND_HELMET: return "minecraft:diamond_helmet";
+    case ITEM_DIAMOND_HOE: return "minecraft:diamond_hoe";
     case ITEM_DIAMOND_HORSE_ARMOR: return "minecraft:diamond_horse_armor";
     case ITEM_DIAMOND_LEGGINGS: return "minecraft:diamond_leggings";
     case ITEM_DIAMOND_NAUTILUS_ARMOR: return "minecraft:diamond_nautilus_armor";
@@ -320,7 +328,9 @@ const char* global_id2item_name(int global_id, int mc) {
     case ITEM_MAP: return "minecraft:map";
     case ITEM_MELON_SEEDS: return "minecraft:melon_seeds";
     case ITEM_MOSS_BLOCK: return "minecraft:moss_block";
+    case ITEM_MUSIC_DISC_13: return "minecraft:music_disc_13";
     case ITEM_MUSIC_DISC_BOUNCE: return "minecraft:music_disc_bounce";
+    case ITEM_MUSIC_DISC_CAT: return "minecraft:music_disc_cat";
     case ITEM_MUSIC_DISC_CREATOR: return "minecraft:music_disc_creator";
     case ITEM_MUSIC_DISC_OTHERSIDE: return "minecraft:music_disc_otherside";
     case ITEM_MUSIC_DISC_PIGSTEP: return "minecraft:music_disc_pigstep";
@@ -343,6 +353,7 @@ const char* global_id2item_name(int global_id, int mc) {
     case ITEM_RABBIT_HIDE: return "minecraft:rabbit_hide";
     case ITEM_RAIL: return "minecraft:rail";
     case ITEM_REDSTONE: return "minecraft:redstone";
+    case ITEM_RESIN_CLUMP: return "minecraft:resin_clump";
     case ITEM_RIB_ARMOR_TRIM_SMITHING_TEMPLATE: return "minecraft:rib_armor_trim_smithing_template";
     case ITEM_ROTTEN_FLESH: return "minecraft:rotten_flesh";
     case ITEM_SADDLE: return "minecraft:saddle";
@@ -364,6 +375,7 @@ const char* global_id2item_name(int global_id, int mc) {
     case ITEM_TORCH: return "minecraft:torch";
     case ITEM_TRIDENT: return "minecraft:trident";
     case ITEM_TRIPWIRE_HOOK: return "minecraft:tripwire_hook";
+    case ITEM_VEX_ARMOR_TRIM_SMITHING_TEMPLATE: return "minecraft:vex_armor_trim_smithing_template";
     case ITEM_WARM_OCEAN_RUINS_MAP: return "minecraft:warm_ocean_ruins_map";
     case ITEM_WHEAT: return "minecraft:wheat";
     case ITEM_WHITE_CANDLE: return "minecraft:white_candle";

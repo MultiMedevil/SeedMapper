@@ -123,6 +123,8 @@ set(HEADERS
 	loot/loot_tables/chests/stronghold_crossing_1_13.h
 	loot/loot_tables/chests/stronghold_library_1_13.h
 	loot/loot_tables/chests/stronghold_library_1_20.h
+	loot/loot_tables/chests/woodland_mansion_26_1.h
+	loot/loot_tables/chests/woodland_mansion_26_3.h
 	loot/loot_tables/chests/trial_chambers/reward_1_21_1.h
 	loot/loot_tables/chests/trial_chambers/reward_common_1_21_1.h
     loot/loot_tables/chests/trial_chambers/reward_ominous_1_21_1.h
@@ -220,6 +222,8 @@ set(SOURCES
 	loot/loot_tables/chests/stronghold_crossing_1_13.c
 	loot/loot_tables/chests/stronghold_library_1_13.c
 	loot/loot_tables/chests/stronghold_library_1_20.c
+	loot/loot_tables/chests/woodland_mansion_26_1.c
+	loot/loot_tables/chests/woodland_mansion_26_3.c
 	loot/loot_tables/chests/trial_chambers/reward_1_21_1.c
 	loot/loot_tables/chests/trial_chambers/reward_common_1_21_1.c
     loot/loot_tables/chests/trial_chambers/reward_ominous_1_21_1.c
