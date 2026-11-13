@@ -70,14 +70,18 @@ STRUCT(MansionStart)
  * chunk, and at which Y level. The chunk has to be a valid mansion position
  * already (see getStructurePos). Only versions since 1.18 are supported.
  *
- * The game places the mansion at the lowest of four surface heights, requires
- * that height to be at least 60, and checks the biome at that height. The
+ * The game places the mansion at the Y level of the lowest of four surface
+ * blocks, requires that level to be at least 60, and checks the biome there. The
  * surface heights are computed with sampleWorldSurfaceHeight. If the terrain at
  * one of the four positions is below the sea level, the result relies on that
  * position being covered by water. This is almost always the case, but it is not
  * verified. start->minY is then less than start->pos.y, and the Y level (and for
  * minY < 60 even the existence of the mansion) should be treated as an estimate.
  * The X- and Z-coordinates, the layout and the loot do not depend on the Y level.
+ *
+ * Aquifers are not simulated. In rare cases an aquifer puts water on top of the
+ * terrain above the sea level at one of the four positions, which makes the
+ * mansion generate higher than this function reports (and start->minY says).
  *
  * @param tn the terrain noise, initialised for the overworld
  * @param chunkX, chunkZ the chunk position of the structure start

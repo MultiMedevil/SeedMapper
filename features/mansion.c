@@ -636,8 +636,10 @@ int getMansionStart(TerrainNoise *tn, int chunkX, int chunkZ, MansionStart *star
     const int corners[4][2] = {{x, z}, {x, z + dz}, {x + dx, z}, {x + dx, z + dz}};
     int y = INT_MAX, lowest = INT_MAX;
     for (int i = 0; i < 4; ++i) {
+        // ChunkGenerator#getFirstOccupiedHeight is the Y level of the highest block, not of the block above it
         int cornerLowest;
-        int height = sampleWorldSurfaceHeight(tn, corners[i][0], corners[i][1], minHeight, &cornerLowest);
+        int height = sampleWorldSurfaceHeight(tn, corners[i][0], corners[i][1], minHeight + 1, &cornerLowest) - 1;
+        cornerLowest -= 1;
         if (height < y) {
             y = height;
         }
