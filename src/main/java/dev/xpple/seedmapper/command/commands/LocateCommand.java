@@ -21,24 +21,31 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.xpple.seedmapper.command.CommandExceptions;
 import dev.xpple.seedmapper.command.CustomClientCommandSource;
 import dev.xpple.seedmapper.command.arguments.CanyonCarverArgument;
+import dev.xpple.seedmapper.command.arguments.ItemAndEnchantmentsPredicateArgument;
+import dev.xpple.seedmapper.feature.MansionLootSearch;
 import dev.xpple.seedmapper.feature.StructureChecks;
 import dev.xpple.seedmapper.feature.StructureVariantFeedbackHelper;
+import dev.xpple.seedmapper.feature.WoodlandMansions;
 import dev.xpple.seedmapper.seedmap.SeedMapData;
 import dev.xpple.seedmapper.util.BiomeSeedIdentifier;
+import dev.xpple.seedmapper.util.CubiomesHelper;
 import dev.xpple.seedmapper.util.ExtraComponentUtils;
 import dev.xpple.seedmapper.util.SeedIdentifier;
 import dev.xpple.seedmapper.util.SpiralLoop;
 import dev.xpple.seedmapper.util.SpiralSpliterator;
 import dev.xpple.seedmapper.util.TwoDTree;
+import dev.xpple.simplewaypoints.api.SimpleWaypointsAPI;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.QuartPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import org.jspecify.annotations.Nullable;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -50,7 +57,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.function.ToIntBiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -86,8 +95,14 @@ public class LocateCommand {
         Cubiomes.Shipwreck(),
         Cubiomes.Stronghold(),
         Cubiomes.Abandoned_Camp(),
-        Cubiomes.Mineshaft()
+        Cubiomes.Mineshaft(),
+        Cubiomes.Mansion()
     );
+
+    public static final String DEFAULT_MANSION_LOOT_ITEM = "vex_armor_trim_smithing_template";
+
+    // how often a long-running mansion search reports its progress
+    private static final long MANSION_PROGRESS_INTERVAL_NANOS = 5_000_000_000L;
 
     public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher) {
         dispatcher.register(literal("sm:locate")
@@ -105,6 +120,13 @@ public class LocateCommand {
                 .then(argument("amount", integer(1))
                     .then(argument("item", itemAndEnchantments())
                         .executes(ctx -> submit(() -> locateLoot(CustomClientCommandSource.of(ctx.getSource()), getInteger(ctx, "amount"), getItemAndEnchantments(ctx, "item")))))))
+            .then(literal("mansionloot")
+                .then(argument("amount", integer(1))
+                    .executes(ctx -> submit(() -> locateMansionLoot(CustomClientCommandSource.of(ctx.getSource()), getInteger(ctx, "amount"), MansionLootSearch.DEFAULT_RADIUS, null)))
+                    .then(argument("radius", integer(1, MansionLootSearch.MAX_RADIUS))
+                        .executes(ctx -> submit(() -> locateMansionLoot(CustomClientCommandSource.of(ctx.getSource()), getInteger(ctx, "amount"), getInteger(ctx, "radius"), null)))
+                        .then(argument("item", itemAndEnchantments())
+                            .executes(ctx -> submit(() -> locateMansionLoot(CustomClientCommandSource.of(ctx.getSource()), getInteger(ctx, "amount"), getInteger(ctx, "radius"), getItemAndEnchantments(ctx, "item"))))))))
             .then(literal("slimechunk")
                 .executes(ctx -> locateSlimeChunk(CustomClientCommandSource.of(ctx.getSource()))))
             .then(literal("spawn")
@@ -356,10 +378,13 @@ public class LocateCommand {
             throw CommandExceptions.LOOT_NOT_SUPPORTED_EXCEPTION.create();
         }
         int dimension = source.getDimension();
+        int generatorFlags = source.getGeneratorFlags();
+        // mansions are handled separately, because the exact position of their chests is known
+        boolean searchMansions = WoodlandMansions.isLootSupported(version) && WoodlandMansions.lootTableHasItem(version, itemPredicate.item());
 
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment terrainNoise = TerrainNoise.allocate(arena);
-            Cubiomes.setupTerrainNoise(terrainNoise, version, source.getGeneratorFlags());
+            Cubiomes.setupTerrainNoise(terrainNoise, version, generatorFlags);
             Cubiomes.initTerrainNoise(terrainNoise, seed.seed(), dimension);
             MemorySegment generator = TerrainNoise.g(terrainNoise);
 
@@ -380,6 +405,7 @@ public class LocateCommand {
                     }
                 })
                 .filter(sconf -> StructureConfig.dim(sconf) == dimension)
+                .filter(sconf -> StructureConfig.structType(sconf) != Cubiomes.Mansion() || searchMansions)
                 .sorted(Comparator.comparingInt(StructureConfig::regionSize))
                 .map(sconf -> {
                     int regionSize = StructureConfig.regionSize(sconf) << 4;
@@ -399,6 +425,7 @@ public class LocateCommand {
             MemorySegment structureVariant = StructureVariant.allocate(arena);
             MemorySegment structureSaltConfig = StructureSaltConfig.allocate(arena);
             int[] found = {0};
+            int[] mansionChests = {0};
 
             /*
              * To locate loot closest to the player, all structures
@@ -433,7 +460,26 @@ public class LocateCommand {
                         break;
                     }
 
+                    checkCancelled();
                     boolean exhausted = !state.iterator.tryAdvance(pos -> {
+                        if (structure == Cubiomes.Mansion()) {
+                            Optional<MansionLootSearch.Mansion> mansion = MansionLootSearch.getMansion(terrainNoise, seed.seed(), version, generatorFlags, pos.x(), pos.z());
+                            if (mansion.isEmpty()) {
+                                return;
+                            }
+                            List<MansionLootSearch.Match> matches = new ArrayList<>();
+                            for (WoodlandMansions.Chest chest : mansion.get().chests()) {
+                                int count = WoodlandMansions.countItems(chest, version, itemPredicate.item(), itemPredicate.enchantmensPredicate());
+                                if (count > 0) {
+                                    matches.add(new MansionLootSearch.Match(chest, count));
+                                    found[0] += count;
+                                }
+                            }
+                            if (!matches.isEmpty()) {
+                                sendMansionMatches(source, center, itemPredicate.item(), mansion.get(), matches, mansionChests);
+                            }
+                            return;
+                        }
                         if (!state.generationCheck.check(terrainNoise, pos.x(), pos.z(), structurePos)) {
                             return;
                         }
@@ -505,7 +551,8 @@ public class LocateCommand {
                     }
                 }
                 int newlyFound = found[0] - previouslyFound;
-                if (newlyFound > 0) {
+                // matches in mansions have been reported chest by chest already
+                if (newlyFound > 0 && !aggregatedLootPositions.isEmpty()) {
                     String structureName = Cubiomes.struct2str(StructureConfig.structType(structureConfig)).getString(0);
                     source.getClient().schedule(() -> source.sendFeedback(Component.translatable("command.locate.loot.foundAtStructure", accent(String.valueOf(newlyFound)), structureName, ExtraComponentUtils.formatXZCollection(aggregatedLootPositions))));
                 }
@@ -516,6 +563,129 @@ public class LocateCommand {
             String itemName = Cubiomes.global_id2item_name(itemPredicate.item(), version).getString(0);
             source.getClient().schedule(() -> source.sendFeedback(Component.translatable("command.locate.loot.totalFound", accent(String.valueOf(found[0])), itemName)));
             return found[0];
+        }
+    }
+
+    private static int locateMansionLoot(CustomClientCommandSource source, int amount, int radius, @Nullable EnchantedItem item) throws CommandSyntaxException {
+        SeedIdentifier seed = source.getSeed().getSecond();
+        int version = source.getVersion();
+        if (source.getDimension() != Cubiomes.DIM_OVERWORLD()) {
+            throw CommandExceptions.INVALID_DIMENSION_EXCEPTION.create();
+        }
+        if (!WoodlandMansions.isLootSupported(version)) {
+            throw CommandExceptions.MANSION_LOOT_NOT_SUPPORTED_EXCEPTION.create();
+        }
+        EnchantedItem itemPredicate = item != null ? item : ItemAndEnchantmentsPredicateArgument.getItem(DEFAULT_MANSION_LOOT_ITEM);
+        if (itemPredicate == null) {
+            throw CommandExceptions.UNKNOWN_ITEM_EXCEPTION.create(DEFAULT_MANSION_LOOT_ITEM);
+        }
+        Component itemName = itemName(itemPredicate.item());
+        if (!WoodlandMansions.lootTableHasItem(version, itemPredicate.item())) {
+            throw CommandExceptions.MANSION_LOOT_ITEM_NOT_AVAILABLE_EXCEPTION.create(itemName);
+        }
+        int generatorFlags = source.getGeneratorFlags();
+        BlockPos center = BlockPos.containing(source.getPosition());
+        String versionString = Cubiomes.mc2str(version).getString(0);
+
+        source.getClient().schedule(() -> source.sendFeedback(Component.translatable("command.locate.mansionLoot.searching",
+            accent(String.valueOf(radius)), accent(Component.empty().append(itemName)), ExtraComponentUtils.formatNumber(seed.seed()), accent(versionString))));
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment terrainNoise = TerrainNoise.allocate(arena);
+            Cubiomes.setupTerrainNoise(terrainNoise, version, generatorFlags);
+            Cubiomes.initTerrainNoise(terrainNoise, seed.seed(), Cubiomes.DIM_OVERWORLD());
+
+            int[] chestNumber = {0};
+            long[] lastProgress = {System.nanoTime()};
+            MansionLootSearch.Result result;
+            try {
+                result = MansionLootSearch.search(terrainNoise, seed.seed(), version, generatorFlags, center.getX(), center.getZ(), radius, amount, itemPredicate.item(), itemPredicate.enchantmensPredicate(), new MansionLootSearch.Listener() {
+                    @Override
+                    public void onMansion(MansionLootSearch.Mansion mansion, List<MansionLootSearch.Match> matches) {
+                        sendMansionMatches(source, center, itemPredicate.item(), mansion, matches, chestNumber);
+                        lastProgress[0] = System.nanoTime();
+                    }
+
+                    @Override
+                    public void onProgress(int searchedRadius) {
+                        long now = System.nanoTime();
+                        if (now - lastProgress[0] >= MANSION_PROGRESS_INTERVAL_NANOS && searchedRadius < radius) {
+                            lastProgress[0] = now;
+                            source.getClient().schedule(() -> source.sendFeedback(base(Component.translatable("command.locate.mansionLoot.progress", String.valueOf(searchedRadius)))));
+                        }
+                    }
+                });
+            } catch (CancellationException _) {
+                // stopped with /sm:stoptask
+                return 0;
+            }
+
+            if (result.itemsFound() == 0) {
+                source.getClient().schedule(() -> source.sendFeedback(Component.translatable("command.locate.mansionLoot.noneFound",
+                    accent(String.valueOf(radius)), accent(Component.empty().append(itemName)), accent(String.valueOf(result.mansionsChecked())))));
+                return 0;
+            }
+            source.getClient().schedule(() -> {
+                source.sendFeedback(Component.translatable("command.locate.mansionLoot.totalFound",
+                    accent(String.valueOf(result.itemsFound())), accent(Component.empty().append(itemName)), accent(String.valueOf(result.chestsFound())), accent(String.valueOf(result.mansionsWithMatches())), accent(String.valueOf(result.mansionsChecked()))));
+                source.sendFeedback(dark(Component.translatable("command.locate.mansionLoot.disclaimer")));
+            });
+            return result.itemsFound();
+        }
+    }
+
+    private static Component itemName(int item) {
+        return new net.minecraft.world.item.ItemStack(ItemAndEnchantmentsPredicateArgument.ITEM_ID_TO_MC.get(item)).getItemName();
+    }
+
+    /**
+     * Report a mansion and its chests that contain the desired item. This can be called from any thread.
+     *
+     * @param chestNumber the running number of the chests that have been reported so far
+     */
+    private static void sendMansionMatches(CustomClientCommandSource source, BlockPos center, int item, MansionLootSearch.Mansion mansion, List<MansionLootSearch.Match> matches, int[] chestNumber) {
+        WoodlandMansions.Start start = mansion.start();
+        BlockPos origin = start.origin();
+        List<Component> lines = new ArrayList<>();
+
+        MutableComponent mansionLine = Component.translatable("command.locate.mansionLoot.mansion",
+            ExtraComponentUtils.formatXYZ(origin.getX(), origin.getY(), origin.getZ(), Component.translatable("command.locate.mansionLoot.copyMansion")),
+            accent(String.valueOf(Math.round(MansionLootSearch.horizontalDistance(origin, center.getX(), center.getZ())))));
+        if (!start.isCertainToGenerate()) {
+            mansionLine.append(" ").append(hover(warn(Component.translatable("command.locate.mansionLoot.mayNotGenerate")), base(Component.translatable("command.locate.mansionLoot.mayNotGenerate.hover"))));
+        } else if (!start.isYExact()) {
+            mansionLine.append(" ").append(hover(warn(Component.translatable("command.locate.mansionLoot.yEstimated")), base(Component.translatable("command.locate.mansionLoot.yEstimated.hover"))));
+        }
+        lines.add(mansionLine);
+
+        Component itemName = itemName(item);
+        for (MansionLootSearch.Match match : matches) {
+            BlockPos pos = match.chest().pos();
+            int number = ++chestNumber[0];
+            MutableComponent chestLine = Component.literal(" - ").append(Component.translatable("command.locate.mansionLoot.chest",
+                accent(String.valueOf(number)),
+                ExtraComponentUtils.formatXYZ(pos.getX(), pos.getY(), pos.getZ(), Component.translatable("command.locate.mansionLoot.copyChest")),
+                accent(String.valueOf(Math.round(MansionLootSearch.horizontalDistance(pos, center.getX(), center.getZ())))),
+                Component.translatable("command.locate.mansionLoot.loot", accent(String.valueOf(match.count())), itemName)));
+            String waypointName = "mansion_chest_%d_%d_%d".formatted(pos.getX(), pos.getY(), pos.getZ());
+            chestLine.append(" ").append(run(hover(format(Component.translatable("command.locate.mansionLoot.waypoint"), net.minecraft.ChatFormatting.UNDERLINE), base(Component.translatable("command.locate.mansionLoot.waypoint.hover"))), () -> addWaypoint(source, waypointName, pos)));
+            lines.add(chestLine);
+        }
+        source.getClient().schedule(() -> lines.forEach(source::sendFeedback));
+    }
+
+    private static void addWaypoint(CustomClientCommandSource source, String name, BlockPos pos) {
+        SimpleWaypointsAPI waypointsApi = SimpleWaypointsAPI.getInstance();
+        String identifier = waypointsApi.getWorldIdentifier(source.getClient());
+        if (identifier == null) {
+            source.sendError(Component.translatable("commands.exceptions.couldNotDetermineWorldIdentifier"));
+            return;
+        }
+        try {
+            waypointsApi.addWaypoint(identifier, CubiomesHelper.getMinecraftDimension(Cubiomes.DIM_OVERWORLD()), name, pos);
+            source.sendFeedback(Component.translatable("command.locate.mansionLoot.waypointAdded", accent(name)));
+        } catch (CommandSyntaxException e) {
+            source.sendError(Component.empty().append(e.getRawMessage() instanceof Component component ? component : Component.literal(e.getMessage())));
         }
     }
 

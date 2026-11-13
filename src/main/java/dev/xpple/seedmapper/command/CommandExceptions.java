@@ -41,5 +41,7 @@ public final class CommandExceptions {
     public static final SimpleCommandExceptionType SINKHOLE_WRONG_VERSION_EXCEPTION = new SimpleCommandExceptionType(Component.translatable("commands.exceptions.sinkholeWrongVersion"));
     public static final SimpleCommandExceptionType LOOT_NOT_SUPPORTED_EXCEPTION = new SimpleCommandExceptionType(Component.translatable("commands.exceptions.lootNotSupported"));
     public static final SimpleCommandExceptionType LOOT_NOT_AVAILABLE_EXCEPTION = new SimpleCommandExceptionType(Component.translatable("commands.exceptions.lootNotAvailable"));
+    public static final SimpleCommandExceptionType MANSION_LOOT_NOT_SUPPORTED_EXCEPTION = new SimpleCommandExceptionType(Component.translatable("commands.exceptions.mansionLootNotSupported"));
+    public static final DynamicCommandExceptionType MANSION_LOOT_ITEM_NOT_AVAILABLE_EXCEPTION = new DynamicCommandExceptionType(arg -> Component.translatable("commands.exceptions.mansionLootItemNotAvailable", arg));
     public static final SimpleCommandExceptionType COULD_NOT_DETERMINE_WORLD_IDENTIFIER = new SimpleCommandExceptionType(Component.translatable("commands.exceptions.couldNotDetermineWorldIdentifier"));
 }

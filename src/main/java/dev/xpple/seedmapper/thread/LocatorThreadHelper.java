@@ -42,6 +42,9 @@ public final class LocatorThreadHelper {
         currentTask = locatingExecutor.submit(() -> {
             try {
                 return task.get();
+            } catch (CancellationException e) {
+                // the task was stopped, which has been reported already
+                return 0;
             } catch (Throwable e) {
                 Player player = Minecraft.getInstance().player;
                 if (e instanceof CommandSyntaxException cse) {
