@@ -1,6 +1,7 @@
 [submodule "src/main/c/cubiomes"]
 	path = src/main/c/cubiomes
-	url = https://github.com/xpple/cubiomes
+	url = https://github.com/MultiMedevil/SeedMapper
+	branch = claude/eloquent-babbage-wd4e05-cubiomes
 [submodule "jextract"]
 	path = jextract
 	url = https://github.com/xpple/jextract
